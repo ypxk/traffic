@@ -1,8 +1,8 @@
-// CroneEngine_MollyThePoly
+// CroneEngine_dollyThePoly
 //
 // v1.0.1 Mark Eats
 
-Engine_MollyThePoly : CroneEngine {
+Engine_dollyThePoly : CroneEngine {
 
 	classvar maxNumVoices = 16;
 	var voiceGroup;

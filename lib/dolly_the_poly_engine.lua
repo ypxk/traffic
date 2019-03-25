@@ -1,14 +1,14 @@
---- Molly the Poly Engine lib
+--- dolly the Poly Engine lib
 -- Engine params and functions.
 --
--- @module MollyThePolyEngine
+-- @module dollyThePolyEngine
 -- @release v1.0.1
 -- @author Mark Eats
 
 local ControlSpec = require "controlspec"
 local Formatters = require "formatters"
 
-local MollyThePoly = {}
+local dollyThePoly = {}
 
 local specs = {}
 local options = {}
@@ -53,7 +53,7 @@ specs.RING_MOD_MIX = ControlSpec.UNIPOLAR
 
 specs.CHORUS_MIX = ControlSpec.new(0, 1, "lin", 0, 0.8, "")
 
-MollyThePoly.specs = specs
+dollyThePoly.specs = specs
 
 
 local function format_ratio_to_one(param)
@@ -71,7 +71,7 @@ local function format_fade(param)
   return math.abs(secs) .. " s" .. suffix
 end
 
-function MollyThePoly.add_params()
+function dollyThePoly.add_params()
   
   params:add{type = "option", id = "osc_wave_shape", name = "Osc Wave Shape", options = options.OSC_WAVE_SHAPE, default = 3, action = function(value) engine.oscWaveShape(value - 1) end}
   params:add{type = "control", id = "pulse_width_mod", name = "Pulse Width Mod", controlspec = specs.PW_MOD, action = engine.pwMod}
@@ -132,13 +132,13 @@ function MollyThePoly.add_params()
   
   params:bang()
   
-  params:add{type = "trigger", id = "create_lead", name = "Create Lead", action = function() MollyThePoly.randomize_params("lead") end}
-  params:add{type = "trigger", id = "create_pad", name = "Create Pad", action = function() MollyThePoly.randomize_params("pad") end}
-  params:add{type = "trigger", id = "create_percussion", name = "Create Percussion", action = function() MollyThePoly.randomize_params("percussion") end}
+  params:add{type = "trigger", id = "create_lead", name = "Create Lead", action = function() dollyThePoly.randomize_params("lead") end}
+  params:add{type = "trigger", id = "create_pad", name = "Create Pad", action = function() dollyThePoly.randomize_params("pad") end}
+  params:add{type = "trigger", id = "create_percussion", name = "Create Percussion", action = function() dollyThePoly.randomize_params("percussion") end}
   
 end
 
-function MollyThePoly.randomize_params(sound_type)
+function dollyThePoly.randomize_params(sound_type)
   
   params:set("osc_wave_shape", math.random(#options.OSC_WAVE_SHAPE))
   params:set("pulse_width_mod", math.random())
@@ -332,4 +332,4 @@ function MollyThePoly.randomize_params(sound_type)
   
 end
 
-return MollyThePoly
+return dollyThePoly
