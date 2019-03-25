@@ -1,6 +1,6 @@
 # traffic
 
-rework of @markeats' loom for quickly decoupling motifs from their harmonic framework
+edit of @markeats' loom for quickly decoupling motifs from their harmonic framework
 
 enc 1: circle of 5ths
 
