@@ -39,6 +39,7 @@ local triggerDuration
 local gridDevice
 local GRID_FRAMERATE = 30
 local SCREEN_FRAMERATE = 15
+local ARC_FRAMERATE = 20
 local TRAIL_ANI_LENGTH = 6.0
 local DOWN_ANI_LENGTH = 0.2
 local gridDirty = true
@@ -868,7 +869,6 @@ function advance_step()
  
   screenDirty = true
   gridDirty = true
-	arcDirty = true
 end
 
 
@@ -1115,6 +1115,7 @@ function init()
   
   grid_redraw_metro:start(1 / GRID_FRAMERATE)
   screen_refresh_metro:start(1 / SCREEN_FRAMERATE)
+	arc_redraw_metro:start(1 / ARC_FRAMERATE)
   beat_clock:start()
 
 	pat = pattern_time.new()
@@ -1208,18 +1209,69 @@ function gridKey(x, y, z)
 end
 
 function ar.delta(n, delta)
-	print("enc: "..n)
-	print("delta: "..delta)
-end
+		if n == 1 then
+			if delta > 0 then transposeAmount = 7
+			elseif delta < 0 then transposeAmount = -7 end
+			if util.time() - timeLast > .1 then
+				if not progression.isplaying then
+					change_scale(transposeAmount, tonality,delta)
+				else
+					background_change_scale(transposeAmount, tonality,delta)
+				end
+			end
+			--encoder 2
+		elseif n == 2 then 
+			local prevPivot = pivotAmount
+			if arc2Check == nil then arc2Check = 0 end
+			if util.time() - timeLast > .1 or arc2Check > 10  then 
+				arc2Check = 0 
+				if delta > 0 then pivotAmount = math.abs(pivotAmount) 
+			elseif delta < 0 then pivotAmount = pivotAmount * -1 end
+
+			if not progression.isplaying then
+					pivot_within_scale(pivotAmount) 
+				else
+					background_pivot_within_scale(pivotAmount)
+				end
+				pivotAmount = prevPivot
+
+
+			else
+				arc2Check = arc2Check + math.abs(delta)
+			end
+		end
+		timeLast = util.time()
+		arcDirty = true
+	end
 
 function arc_redraw()
-	print('arc redraw')
-	if progression.isplaying then 
-		print('hark! the ark shall be lit!')
-		ar:led(1, 15, 15)
+	ar:all(0)
+	for a = 1,64 do
+		local note = MusicUtil.note_num_to_name(a-1)
+		print(note)
+		if string.find(note,"%#") then ar:led(1,a,0) 
+		elseif string.find(note,"C") then ar:led(1,a,5) 
+		else ar:led(1,a,3) end
+
+		if string.find(note, MusicUtil.note_num_to_name(rootNote)) then
+			ar:led(1,a,10)
+		end
+
+		for k,v in pairs(masterScale) do
+			if (a-1)+octave == v then
+				ar:led(2,a,5)
+			end
+		end
+		for k,v in pairs(gridScale) do
+			if (a-1)+octave == v then
+				ar:led(2,a,9)
+			end
+		end
 	end
 
 
+		
+  ar:refresh()
 end
 
 
