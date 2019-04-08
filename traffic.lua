@@ -23,7 +23,7 @@
 
 MusicUtil = require "musicutil"
 local BeatClock = require "beatclock"
-local MollyThePoly = require "traffic/lib/molly_the_poly_engine"
+local MollyThePoly = require "molly_the_poly/lib/molly_the_poly_engine"
 local pattern_time = require 'pattern_time'
 
 engine.name = "MollyThePoly"
@@ -42,6 +42,7 @@ local SCREEN_FRAMERATE = 15
 local TRAIL_ANI_LENGTH = 6.0
 local DOWN_ANI_LENGTH = 0.2
 local gridDirty = true
+local arcDirty = true
 local gridLEDs = {}
 local trails = {}
 local downMarks = {}
@@ -78,8 +79,8 @@ local patternClearer
 
 local prevTranspose = 60
 
-m = midi.connect()
-
+local ar = arc.connect(1)
+local midi_in_device 
 	
 
 
@@ -173,7 +174,7 @@ function set_octave(newOctave)
 end
 
 function capture_scale()
-	print('capturing', MusicUtil.note_num_to_name(gridScale[1]))
+	--print('capturing', MusicUtil.note_num_to_name(gridScale[1]))
 	progression.gridscale = {}
 	progression.masterscale = {}
 	progression.tonality = tonality 
@@ -249,6 +250,7 @@ function change_scale(semitones,scaleType,clockwisemotion)
 	rootNote = newRoot
 	masterScale = incomingScale
 	screenDirty = true
+	arcDirty = true
 end
 
 function background_change_scale(semitones,scaleType,clockwisemotion)
@@ -378,7 +380,7 @@ function play_progression(e)
 		elseif e.id == 'enc' then 
 			enc_event(e.number, e.state)
 		elseif e.id == 'midi' then
-			midi_event(e.number)
+			midi_transpose_event(e.number)
 
 		end
 	end
@@ -435,7 +437,7 @@ function key_event(n, z)
 	end
 end
 
-function midi_event(data)
+function midi_transpose_event(data)
 	local note
 	if data ~= prevTranspose then 
 		note = pitch_quantizer(data - prevTranspose)
@@ -444,7 +446,7 @@ function midi_event(data)
 	prevTranspose = data 
 end
 
-function m.event(data)
+function midi_event(data)
   local d = midi.to_msg(data)
 	local note
 	local e = {}
@@ -456,36 +458,12 @@ function m.event(data)
 			note = pitch_quantizer(d.note - prevTranspose)
 			if note then pivot_within_scale(note) end
 		end
-
-		--[[c is root
-		if d.note > prevTranspose then
-			change_scale(d.note-prevTranspose,tonality,1)
-		elseif d.note < prevTranspose then
-			change_scale(d.note-prevTranspose,tonality,-1)
-		elseif d.note == 60 then 
-			for k,v in pairs(progression.gridscale) do gridScale[k] = v end
-			for k,v in pairs(progression.masterscale) do masterScale[k] = v end
-			tonality = progression.tonality
-			rootNote = progression.rootnote
-		end
-
-			--pivot_within_scale(d.note-prevTranspose) end
-		end]]
-
 		prevTranspose = d.note
 	end
 	
 end
 
 function enc(n, delta)
---[[	if pat.rec == 0 then
-		if not progression.isplaying then 
-			if progression.gridscale ~= gridScale then
-				capture_scale() 
-			end
-		end
-	end]]
-
 	local e = {}
 	e.id = 'enc'
 	e.number = n
@@ -890,6 +868,7 @@ function advance_step()
  
   screenDirty = true
   gridDirty = true
+	arcDirty = true
 end
 
 
@@ -961,11 +940,13 @@ local function grid_update()
       end
     end
   end
-
-
-
 end
+
 function init()
+	midi_in_device = midi.connect(1)
+	midi_in_device.event = midi_event
+  
+	
 	masterScale = MusicUtil.generate_scale_of_length(rootNote, tonality, 128)
 	--set first scale
 	for _, v in pairs(masterScale) do 
@@ -1002,11 +983,6 @@ function init()
     screenDirty = true
   end
   
-  midi_in_device = midi.connect(1)
-  midi_in_device.event = function(data)
-    beat_clock:process_midi(data)
-  end
-  
   midi_out_device = midi.connect(1)
   midi_out_device.event = function() end
   
@@ -1025,7 +1001,17 @@ function init()
       gridDirty = false
       grid_redraw()
     end
-  end
+	end
+
+	local arc_redraw_metro = metro.init()
+	arc_redraw_metro.event = function()
+		if arcDirty then
+			arcDirty = false
+			arc_redraw()
+		end
+	end
+
+
 
   
   -- Add params
@@ -1041,6 +1027,12 @@ function init()
   
   params:add{type = "option", id = "output", name = "Output", options = options.OUTPUT, action = all_notes_kill}
  
+	params:add{type = "number", id = "midi_device", name = "MIDI Device", min = 1, max = 4, default = 1, action = function(value)
+    midi_in_device.event = nil
+    midi_in_device = midi.connect(value)
+    midi_in_device.event = midi_event
+  end}
+ 
   params:add{type = "number", id = "midi_out_device", name = "MIDI Out Device", min = 1, max = 4, default = 1,
     action = function(value)
 			midi_out_device = midi.connect(value)
@@ -1051,7 +1043,7 @@ function init()
       all_notes_kill()
       midi_out_channel = value
     end}
-  params:add{type = "number", id = "max_active_notes", name = "Max Active Notes", min = 1, max = 16, default = 16}
+  params:add{type = "number", id = "max_active_notes", name = "Max Active Notes", min = 1, max = 10, default = 10}
   
   
 	params:add{type = "option", id = "clock", name = "Clock", options = {"Internal", "External"}, default = beat_clock.external or 2 and 1,
@@ -1213,6 +1205,21 @@ function gridKey(x, y, z)
   end
   
   gridDirty = true
+end
+
+function ar.delta(n, delta)
+	print("enc: "..n)
+	print("delta: "..delta)
+end
+
+function arc_redraw()
+	print('arc redraw')
+	if progression.isplaying then 
+		print('hark! the ark shall be lit!')
+		ar:led(1, 15, 15)
+	end
+
+
 end
 
 
