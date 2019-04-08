@@ -1246,15 +1246,18 @@ function ar.delta(n, delta)
 
 function arc_redraw()
 	ar:all(0)
+
 	for a = 1,64 do
 		local note = MusicUtil.note_num_to_name(a-1)
-		print(note)
-		if string.find(note,"%#") then ar:led(1,a,0) 
-		elseif string.find(note,"C") then ar:led(1,a,5) 
-		else ar:led(1,a,3) end
-
 		if string.find(note, MusicUtil.note_num_to_name(rootNote)) then
-			ar:led(1,a,10)
+			if string.len(note) == string.len(MusicUtil.note_num_to_name(rootNote)) then
+			ar:led(1,a,10) end 
+		elseif string.find(note,"%#") then 
+			ar:led(1,a,0) 
+		elseif string.find(note,"C") then 
+			ar:led(1,a,5) 
+		else 
+			ar:led(1,a,3) 
 		end
 
 		for k,v in pairs(masterScale) do
@@ -1262,6 +1265,7 @@ function arc_redraw()
 				ar:led(2,a,5)
 			end
 		end
+
 		for k,v in pairs(gridScale) do
 			if (a-1)+octave == v then
 				ar:led(2,a,9)
