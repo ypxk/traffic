@@ -375,14 +375,14 @@ function play_progression(e)
 		screenDirty = true
 	end
 	if e then
-		print(pat.step, e.id, e.number)
 		if e.id == 'key' then
 			key_event(e.number, e.state)
 		elseif e.id == 'enc' then 
 			enc_event(e.number, e.state)
 		elseif e.id == 'midi' then
 			midi_transpose_event(e.number)
-
+		elseif e.id == 'arc' then 
+			arc_event(e.number, e.state)
 		end
 	end
 
@@ -446,6 +446,38 @@ function midi_transpose_event(data)
 	end
 	prevTranspose = data 
 end
+
+function arc_event(n, delta)
+
+	if n == 1 then
+		if delta > 0 then 
+			transposeAmount = 7
+		elseif delta < 0 then 
+			transposeAmount = -7 
+		end
+		if util.time() - timeLast > .1 then
+				change_scale(transposeAmount, tonality,delta)
+		end
+		--encoder 2
+	elseif n == 2 then 
+		local prevPivot = pivotAmount
+		if arc2Check == nil then arc2Check = 0 end
+		if delta > 0 then pivotAmount = math.abs(pivotAmount) 
+		elseif delta < 0 then pivotAmount = pivotAmount * -1 end
+		
+		if util.time() - timeLast > .1 or arc2Check > 10  then 
+			arc2Check = 0 
+			pivot_within_scale(pivotAmount) 
+		else
+			arc2Check = arc2Check + math.abs(delta)
+		end
+			pivotAmount = prevPivot
+	end
+	timeLast = util.time()
+	arcDirty = true
+	screenDirty = true
+end
+
 
 function midi_event(data)
   local d = midi.to_msg(data)
@@ -519,7 +551,6 @@ function enc(n, delta)
 			local x = params:get("traffic_length")
 			if util.time() - timeLast > .1 then
 				x = x + delta
-				print('x + ', delta, ' = ', x)  
 				if x > 4 then x = 1
 				elseif x < (-2) then x = (-1) end
 				params:set("traffic_length", x)
@@ -1209,36 +1240,40 @@ function gridKey(x, y, z)
 end
 
 function ar.delta(n, delta)
+	local e = {}
+	e.id = 'arc' 
+	e.number = n
+	e.state = delta
+	pat:watch(e)
 		if n == 1 then
 			if delta > 0 then transposeAmount = 7
 			elseif delta < 0 then transposeAmount = -7 end
+		
 			if util.time() - timeLast > .1 then
 				if not progression.isplaying then
-					change_scale(transposeAmount, tonality,delta)
+					change_scale(transposeAmount, tonality)
 				else
-					background_change_scale(transposeAmount, tonality,delta)
+					background_change_scale(transposeAmount, tonality)
 				end
 			end
 			--encoder 2
 		elseif n == 2 then 
 			local prevPivot = pivotAmount
 			if arc2Check == nil then arc2Check = 0 end
+			if delta > 0 then pivotAmount = math.abs(pivotAmount) 
+			elseif delta < 0 then pivotAmount = pivotAmount * -1 end
+			
 			if util.time() - timeLast > .1 or arc2Check > 10  then 
 				arc2Check = 0 
-				if delta > 0 then pivotAmount = math.abs(pivotAmount) 
-			elseif delta < 0 then pivotAmount = pivotAmount * -1 end
-
-			if not progression.isplaying then
+				if not progression.isplaying then
 					pivot_within_scale(pivotAmount) 
 				else
 					background_pivot_within_scale(pivotAmount)
 				end
-				pivotAmount = prevPivot
-
-
 			else
 				arc2Check = arc2Check + math.abs(delta)
 			end
+				pivotAmount = prevPivot
 		end
 		timeLast = util.time()
 		arcDirty = true
