@@ -153,12 +153,13 @@ function get_bar_length()
 end
 
 function change_tonality()
+	local newTonality
 	if tonality == 'Natural Minor' then 
-		tonality = 'Major' 
+		newTonality = 'Major' 
 	else 
-		tonality = 'Natural Minor' 
+		newTonality = 'Natural Minor' 
 	end 
-	change_scale(0, tonality)
+	change_scale(0, newTonality)
 end
 
 function background_change_tonality()
@@ -198,7 +199,9 @@ function change_scale(semitones,scaleType,clockwisemotion)
   local newRoot
 	clockwisemotion = clockwisemotion or 1 
 
-	if semitones == 0 and scaleType == tonality then return end
+	if semitones == 0 and scaleType ~= tonality then 
+		tonality = scaleType
+	end
 	newRoot = (rootNote + semitones) % 12
   incomingScale = MusicUtil.generate_scale_of_length(newRoot, scaleType, 128)
   --get tone map of new pitches
@@ -220,6 +223,7 @@ function change_scale(semitones,scaleType,clockwisemotion)
       end
     end
   end
+
   --map scale to grid
   for k,v in pairs(notesToKeep) do
     if #incomingGridScale < 16 then
@@ -259,7 +263,12 @@ function background_change_scale(semitones,scaleType,clockwisemotion)
   local notesToKeep = {}
   local incomingGridScale = {}
   local newRoot
+	
 	clockwisemotion = clockwisemotion or 1 
+	if semitones == 0 and scaleType ~= tonality then 
+		tonality = scaleType
+	end
+
 	newRoot = (progression.rootnote + semitones) % 12
   incomingScale = MusicUtil.generate_scale_of_length(newRoot, scaleType, 128)
   --get tone map of new pitches
@@ -584,6 +593,7 @@ function key(n, z)
 			if util.time() - clearBuffer < .5 then 
 				if not progression.isplaying then 
 					change_tonality()
+					arcDirty = true
 				else 
 					background_change_tonality()
 				end
