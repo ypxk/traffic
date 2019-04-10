@@ -2,9 +2,9 @@
 
 edit of @markeats' loom for quickly decoupling motifs from their harmonic framework
 
-enc 1: circle of 5ths
+enc 1/arc 1: circle of 5ths
 
-enc 2: jump notes
+enc 2/arc 2: jump notes
 
 enc 3: add/remove
 
