@@ -25,6 +25,7 @@ MusicUtil = require "musicutil"
 local BeatClock = require "beatclock"
 local MollyThePoly = require "molly_the_poly/lib/molly_the_poly_engine"
 local pattern_time = require 'pattern_time'
+local Formatters = require "formatters"
 
 engine.name = "MollyThePoly"
 
@@ -32,8 +33,13 @@ local options = {}
 options.OUTPUT = {"Audio", "MIDI", "Audio + MIDI"}
 options.STEP_LENGTH_NAMES = {"1 bar", "1/2", "1/3", "1/4", "1/6", "1/8", "1/12", "1/16", "1/24", "1/32", "1/48", "1/64"}
 options.STEP_LENGTH_DIVIDERS = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64}
-options.traffic_length_NAMES = {'sunday','rush hour', 'grid lock', 'reverse commute'}
+options.traffic_length_NAMES = {'sunday','rush hour', 'grid lock', 'road rage'}
 options.traffic_length_DIVIDERS = {1, 2, 3, 4}
+options.OSC_WAVE_SHAPE = {"Triangle", "Saw", "Pulse"}
+options.PW_MOD_SRC = {"LFO", "Env 1", "Manual"}
+options.LP_FILTER_TYPE = {"-12 dB/oct", "-24 dB/oct"}
+options.LP_FILTER_ENV = {"Env-1", "Env-2"}
+options.LFO_WAVE_SHAPE = {"Sine", "Triangle", "Saw", "Square", "Random"}
 local triggerDuration
 
 local gridDevice
@@ -82,6 +88,8 @@ local prevTranspose = 60
 
 local ar = arc.connect(1)
 local midi_in_device 
+
+
 	
 
 
@@ -382,6 +390,7 @@ function play_progression(e)
 		rootNote = progression.rootnote
 
 		screenDirty = true
+	arcDirty = true
 	end
 	if e then
 		if e.id == 'key' then
@@ -697,7 +706,7 @@ local triggerDuration
 		length = length or 1
 		direction = direction or 1
 	elseif params:get("traffic_length") == 2 then
-		length = (length or 1) + 1
+		length = (length or 1) + 2
 		direction = direction or 1
 	elseif params:get("traffic_length") == 4 then
 		length = length or 1
@@ -837,6 +846,9 @@ function advance_step()
     -- Progress
 		if params:get("traffic_length") == 3 then 
 			t.advance_countdown = t.advance_countdown 
+		elseif params:get("traffic_length") == 4 then 
+			t.direction = t.direction * -1
+			t.advance_countdown = t.advance_countdown - 1
 		else 
 			t.advance_countdown = t.advance_countdown - 1
 		end 
@@ -909,6 +921,7 @@ function advance_step()
   end
  
   screenDirty = true
+	arcDirty = true
   gridDirty = true
 end
 
@@ -1057,7 +1070,272 @@ function init()
   
   -- Add params
  
-  params:add{type = "number", id = "gridDevice", name = "Grid Device", min = 1, max = 4, default = 1,
+  params:add{type = "number", id = "bpm", name = "BPM", min = 1, max = 340, default =140,
+    action = function(value)
+      beat_clock:bpm_change(value)
+      
+    end}
+ 
+	params:add{type = "option", 
+		id = "step_length", 
+		name = "Step Length", 
+		options = options.STEP_LENGTH_NAMES, 
+		default = 8, 
+		action = function(value)
+			stepDuration = value
+			stepsPerBar = get_bar_length()
+			beat_clock.steps_per_beat = options.STEP_LENGTH_DIVIDERS[value] / 4
+			beat_clock:bpm_change(beat_clock.bpm)
+			end}
+
+   params:add{type = "option", 
+		id = "traffic_length", 
+		name = "Traffic", 
+		options = options.traffic_length_NAMES, 
+		default = 1, 
+		action = function(value)
+			triggerDuration = value
+			end}
+   
+ 
+  params:add_separator()
+  
+  -- Engine params
+  
+  params:add{type = "option", id = "osc_wave_shape", name = "Osc Wave Shape", 
+		options = options.OSC_WAVE_SHAPE, 
+		default = 3, 
+		action = function(value) engine.oscWaveShape(value - 1) end}
+  params:add{type = "control", id = "pulse_width_mod", 
+		name = "Pulse Width Mod", 
+		controlspec = MollyThePoly.specs.PW_MOD,
+		action = engine.pwMod}
+  params:add{type = "option", 
+	id = "pulse_width_mod_src", 
+	name = "Pulse Width Mod Src", 
+	options = options.PW_MOD_SRC, 
+	action = function(value) engine.pwModSource(value - 1) end}
+  params:add{type = "control", 
+	id = "freq_mod_lfo", 
+	name = "Frequency Mod (LFO)", 
+	controlspec = MollyThePoly.specs.FREQ_MOD_LFO, 
+	action = engine.freqModLfo}
+  params:add{type = "control",
+		id = "freq_mod_env",
+		name = "Frequency Mod (Env-1)",
+		controlspec = MollyThePoly.specs.FREQ_MOD_ENV,
+		action = engine.freqModEnv}
+  params:add{type = "control",
+		id = "glide",
+		name = "Glide",
+		controlspec = MollyThePoly.specs.GLIDE,
+		formatter = Formatters.format_secs,
+		action = engine.glide}
+  params:add_separator()
+  
+  params:add{type = "control",
+		id = "main_osc_level",
+		name = "Main Osc Level",
+		controlspec = MollyThePoly.specs.MAIN_OSC_LEVEL,
+		action = engine.mainOscLevel}
+  params:add{type = "control",
+		id = "sub_osc_level",
+		name = "Sub Osc Level",
+		controlspec = MollyThePoly.specs.SUB_OSC_LEVEL,
+		action = engine.subOscLevel}
+  params:add{type = "control",
+		id = "sub_osc_detune",
+		name = "Sub Osc Detune",
+		controlspec = MollyThePoly.specs.SUB_OSC_DETUNE,
+		action = engine.subOscDetune}
+  params:add{type = "control",
+		id = "noise_level",
+		name = "Noise Level",
+		controlspec = MollyThePoly.specs.NOISE_LEVEL,
+		action = engine.noiseLevel}
+  params:add_separator()
+  
+  params:add{type = "control",
+		id = "hp_filter_cutoff",
+		name = "HP Filter Cutoff",
+		controlspec = MollyThePoly.specs.HP_FILTER_CUTOFF,
+		formatter = Formatters.format_freq,
+		action = engine.hpFilterCutoff}
+  params:add{type = "control",
+		id = "lp_filter_cutoff",
+		name = "LP Filter Cutoff",
+		controlspec = MollyThePoly.specs.LP_FILTER_CUTOFF,
+		formatter = Formatters.format_freq,
+		action = engine.lpFilterCutoff}
+  params:add{type = "control",
+		id = "lp_filter_resonance",
+		name = "LP Filter Resonance",
+		controlspec = MollyThePoly.specs.LP_FILTER_RESONANCE,
+		action = engine.lpFilterResonance}
+  params:add{type = "option",
+		id = "lp_filter_type",
+		name = "LP Filter Type",
+		options = options.LP_FILTER_TYPE,
+		default = 2,
+		action = function(value) engine.lpFilterType(value - 1) end}
+  params:add{type = "option",
+		id = "lp_filter_env",
+		name = "LP Filter Env",
+		options = options.LP_FILTER_ENV,
+		action = function(value) engine.lpFilterCutoffEnvSelect(value - 1) end}
+  params:add{type = "control",
+		id = "lp_filter_mod_env",
+		name = "LP Filter Mod (Env)",
+		controlspec = MollyThePoly.specs.LP_FILTER_CUTOFF_MOD_ENV,
+		action = engine.lpFilterCutoffModEnv}
+  params:add{type = "control",
+		id = "lp_filter_mod_lfo",
+		name = "LP Filter Mod (LFO)",
+		controlspec = MollyThePoly.specs.LP_FILTER_CUTOFF_MOD_LFO,
+		action = engine.lpFilterCutoffModLfo}
+  params:add{type = "control",
+		id = "lp_filter_tracking",
+		name = "LP Filter Tracking",
+		controlspec = MollyThePoly.specs.LP_FILTER_TRACKING,
+		formatter = format_ratio_to_one,
+		action = engine.lpFilterTracking}
+  
+ params:add_separator()
+  
+  params:add{type = "control",
+		id = "lfo_freq",
+		name = "LFO Frequency",
+		controlspec = MollyThePoly.specs.LFO_FREQ,
+		formatter = Formatters.format_freq,
+		action = engine.lfoFreq}
+  params:add{type = "option",
+		id = "lfo_wave_shape",
+		name = "LFO Wave Shape",
+		options = options.LFO_WAVE_SHAPE,
+		action = function(value) engine.lfoWaveShape(value - 1) end}
+  params:add{type = "control",
+		id = "lfo_fade",
+		name = "LFO Fade",
+		controlspec = MollyThePoly.specs.LFO_FADE,
+		formatter = format_fade,
+		action = function(value)
+    if value < 0 then value = MollyThePoly.specs.LFO_FADE.minval - 0.00001 + math.abs(value) end
+    engine.lfoFade(value)
+  end}
+  
+ params:add_separator()
+  
+  params:add{type = "control",
+		id = "env_1_attack",
+		name = "Env-1 Attack",
+		controlspec = MollyThePoly.specs.ENV_ATTACK,
+		formatter = Formatters.format_secs,
+		action = engine.env1Attack}
+  params:add{type = "control",
+		id = "env_1_decay",
+		name = "Env-1 Decay",
+		controlspec = MollyThePoly.specs.ENV_DECAY,
+		formatter = Formatters.format_secs,
+		action = engine.env1Decay}
+  params:add{type = "control",
+		id = "env_1_sustain",
+		name = "Env-1 Sustain",
+		controlspec = MollyThePoly.specs.ENV_SUSTAIN,
+		action = engine.env1Sustain}
+  params:add{type = "control",
+		id = "env_1_release",
+		name = "Env-1 Release",
+		controlspec = MollyThePoly.specs.ENV_RELEASE,
+		formatter = Formatters.format_secs,
+		action = engine.env1Release}
+  
+ params:add_separator()
+  
+  params:add{type = "control",
+		id = "env_2_attack",
+		name = "Env-2 Attack",
+		controlspec = MollyThePoly.specs.ENV_ATTACK,
+		formatter = Formatters.format_secs,
+		action = engine.env2Attack}
+  params:add{type = "control",
+		id = "env_2_decay",
+		name = "Env-2 Decay",
+		controlspec = MollyThePoly.specs.ENV_DECAY,
+		formatter = Formatters.format_secs,
+		action = engine.env2Decay}
+  params:add{type = "control",
+		id = "env_2_sustain",
+		name = "Env-2 Sustain",
+		controlspec = MollyThePoly.specs.ENV_SUSTAIN,
+		action = engine.env2Sustain}
+  params:add{type = "control",
+		id = "env_2_release",
+		name = "Env-2 Release",
+		controlspec = MollyThePoly.specs.ENV_RELEASE,
+		formatter = Formatters.format_secs,
+		action = engine.env2Release}
+  
+ params:add_separator()
+  
+  params:add{type = "control",
+		id = "amp",
+		name = "Amp",
+		controlspec = MollyThePoly.specs.AMP,
+		action = engine.amp}
+  params:add{type = "control",
+		id = "amp_mod",
+		name = "Amp Mod (LFO)",
+		controlspec = MollyThePoly.specs.AMP_MOD,
+		action = engine.ampMod}
+  
+ params:add_separator()
+  
+  params:add{type = "control",
+		id = "ring_mod_freq",
+		name = "Ring Mod Frequency",
+		controlspec = MollyThePoly.specs.RING_MOD_FREQ,
+		formatter = Formatters.format_freq,
+		action = engine.ringModFreq}
+  params:add{type = "control",
+		id = "ring_mod_fade",
+		name = "Ring Mod Fade",
+		controlspec = MollyThePoly.specs.RING_MOD_FADE,
+		formatter = format_fade,
+		action = function(value)
+			if value < 0 then value = MollyThePoly.specs.RING_MOD_FADE.minval - 0.00001 + math.abs(value) end
+    engine.ringModFade(value)
+  end}
+  params:add{type = "control",
+		id = "ring_mod_mix",
+		name = "Ring Mod Mix",
+		controlspec = MollyThePoly.specs.RING_MOD_MIX,
+		action = engine.ringModMix}
+  params:add{type = "control",
+		id = "chorus_mix",
+		name = "Chorus Mix",
+		controlspec = MollyThePoly.specs.CHORUS_MIX,
+		action = engine.chorusMix}
+  
+ params:add_separator()
+  
+  params:bang()
+  
+  params:add{type = "trigger",
+		id = "create_lead",
+		name = "Create Lead",
+		action = function() MollyThePoly.randomize_params("lead") end}
+  params:add{type = "trigger",
+		id = "create_pad",
+		name = "Create Pad",
+		action = function() MollyThePoly.randomize_params("pad") end}
+  params:add{type = "trigger",
+		id = "create_percussion",
+		name = "Create Percussion",
+		action = function() MollyThePoly.randomize_params("percussion") end}
+
+ params:add_separator()
+		
+	params:add{type = "number", id = "gridDevice", name = "Grid Device", min = 1, max = 4, default = 1,
     action = function(value)
       gridDevice:all(0)
       gridDevice:refresh()
@@ -1105,36 +1383,12 @@ function init()
       else beat_clock.send = true end
     end}
   
+
+  midi_out_channel = params:get("midi_out_channel")
+
   params:add_separator()
-
-  params:add{type = "number", id = "bpm", name = "BPM", min = 1, max = 340, default =140,
-    action = function(value)
-      beat_clock:bpm_change(value)
-      
-    end}
- 
-	params:add{type = "option", 
-		id = "step_length", 
-		name = "Step Length", 
-		options = options.STEP_LENGTH_NAMES, 
-		default = 8, 
-		action = function(value)
-			stepDuration = value
-			stepsPerBar = get_bar_length()
-			beat_clock.steps_per_beat = options.STEP_LENGTH_DIVIDERS[value] / 4
-			beat_clock:bpm_change(beat_clock.bpm)
-			end}
-
-   params:add{type = "option", 
-		id = "traffic_length", 
-		name = "Traffic", 
-		options = options.traffic_length_NAMES, 
-		default = 1, 
-		action = function(value)
-			triggerDuration = value
-			end}
-   
-  params:add{type = "number", id = "pattern_width", name = "Pattern Width", min = 4, max = 64, default = 16,
+	
+	params:add{type = "number", id = "pattern_width", name = "Pattern Width", min = 4, max = 64, default = 16,
     action = function()
       gridDirty = true
     end}
@@ -1146,13 +1400,8 @@ function init()
   params:add{type = "number", id = "min_velocity", name = "Min Velocity", min = 1, max = 127, default = 80}
   params:add{type = "number", id = "max_velocity", name = "Max Velocity", min = 1, max = 127, default = 100}
   
-  params:add_separator()
-  
-  midi_out_channel = params:get("midi_out_channel")
-  
-  -- Engine params
-  
-  MollyThePoly.add_params()
+ 
+		--metros
   
   grid_redraw_metro:start(1 / GRID_FRAMERATE)
   screen_refresh_metro:start(1 / SCREEN_FRAMERATE)
@@ -1255,39 +1504,71 @@ function ar.delta(n, delta)
 	e.number = n
 	e.state = delta
 	pat:watch(e)
-		if n == 1 then
-			if delta > 0 then transposeAmount = 7
-			elseif delta < 0 then transposeAmount = -7 end
-		
-			if util.time() - timeLast > .1 then
-				if not progression.isplaying then
-					change_scale(transposeAmount, tonality)
-				else
-					background_change_scale(transposeAmount, tonality)
-				end
-			end
-			--encoder 2
-		elseif n == 2 then 
-			local prevPivot = pivotAmount
-			if arc2Check == nil then arc2Check = 0 end
-			if delta > 0 then pivotAmount = math.abs(pivotAmount) 
-			elseif delta < 0 then pivotAmount = pivotAmount * -1 end
-			
-			if util.time() - timeLast > .1 or arc2Check > 10  then 
-				arc2Check = 0 
-				if not progression.isplaying then
-					pivot_within_scale(pivotAmount) 
-				else
-					background_pivot_within_scale(pivotAmount)
-				end
-			else
-				arc2Check = arc2Check + math.abs(delta)
-			end
-				pivotAmount = prevPivot
+	if n == 1 then
+		if arc1Check == nil then arc1Check = 0 end
+		if delta > 0 then transposeAmount = 7
+		elseif delta < 0 then transposeAmount = -7 end
+	
+		if util.time() - timeLast > .5 or arc1Check > 100  then 
+			arc1Check = 0 
+			if not progression.isplaying then change_scale(transposeAmount, tonality) 
+			else background_change_scale(transposeAmount, tonality) end
+		else
+			arc1Check = arc1Check  + math.abs(delta)
 		end
+		--encoder 2
+	elseif n == 2 then 
+		local prevPivot = pivotAmount
+		if arc2Check == nil then arc2Check = 0 end
+		if delta > 0 then pivotAmount = math.abs(pivotAmount) 
+		elseif delta < 0 then pivotAmount = pivotAmount * -1 end
+		
+		if util.time() - timeLast > .3 or arc2Check > 80  then 
+			arc2Check = 0 
+			if not progression.isplaying then pivot_within_scale(pivotAmount) else background_pivot_within_scale(pivotAmount) end
+		else
+			arc2Check = arc2Check + math.abs(delta)
+		end
+			pivotAmount = prevPivot
+		elseif n == 3 then 
+			local changeAmount
+			changeAmount = (math.random(8,12)/10) * (delta/30)
+			if params:get("env_2_decay") > 2 then
+				params:delta("env_2_attack", changeAmount) end
+			if params:get("env_2_attack") < 0.1 then
+				params:delta("env_2_sustain", changeAmount)
+			elseif params:get("env_2_attack") > 4 then
+				params:delta("env_2_sustain", changeAmount) end
+			if params:get("env_2_attack") < 0.1 then
+				params:delta("env_2_decay", changeAmount*2)
+			else params:delta("env_2_decay", changeAmount) end
+			if params:get("env_2_attack") > 0.1 then
+				params:delta("env_2_release", changeAmount)
+			end
+			changeAmount = nil
+		elseif n == 4 then 
+			local changeAmount
+			changeAmount = (math.random(8,12)/10) * (delta/30)
+			params:delta("lp_filter_cutoff", changeAmount)
+			params:delta("lp_filter_resonance", -changeAmount)
+			if params:get('lp_filter_mod_env') >= 0 then params:delta("lp_filter_mod_env", (changeAmount * -1)) end
+
+			if params:get("env_1_decay") > 1 then
+				params:delta("env_1_attack", changeAmount/2)
+			end
+			if params:get("env_1_decay") > 1 then
+				params:delta("env_1_sustain", changeAmount/2)
+			end
+			if params:get("env_1_decay") > .1 then params:delta("env_1_decay", changeAmount) end
+
+			if params:get("lp_filter_cutoff") < 100 then 
+				params:delta("lp_filter_tracking", -1 * changeAmount/2)
+			end 
+			changeAmount = nil
+	end
 		timeLast = util.time()
 		arcDirty = true
-	end
+end
 
 function arc_redraw()
 	ar:all(0)
@@ -1316,7 +1597,45 @@ function arc_redraw()
 				ar:led(2,a,9)
 			end
 		end
+		
 	end
+
+		--[[
+			-- get brightness by volume 
+			--
+			--
+			--
+			--
+			--kif #scale_note_names <17 then
+        for i = 1, grid_w do
+          if (i - 1) % COLS == 0 then x, y = 5, y + 11 end
+          local is_active = false
+          for _, n in pairs(notes) do
+            if n.position == i and n.active then
+              is_active = true
+              break
+            end
+          end
+          
+          local underline_length = 10
+          if scale_note_names[i] == nil then
+              break
+          elseif string.len(scale_note_names[i]) > 3 then
+              underline_length = 18
+					elseif string.len(scale_note_names[i]) > 2 then
+              underline_length = 16
+					end
+          
+          if is_active then screen.level(15)
+          else screen.level(3) end
+          screen.move(x, y)
+          screen.text(scale_note_names[i])
+          
+          x = x + 18
+       
+      end
+    end
+	end]]
 
 
 		
@@ -1465,7 +1784,6 @@ function redraw()
       local x, y = 5, 14
       local scale_note_names = MusicUtil.note_nums_to_names(gridScale, false)
       local COLS = 4
-      --print (#scale_note_names)
       if #scale_note_names <17 then
         for i = 1, grid_w do
           if (i - 1) % COLS == 0 then x, y = 5, y + 11 end
