@@ -1,7 +1,12 @@
 -- los angeles traffic 
+-- put down your phone
+-- 1.1.3
 --
--- enc 1: circle of 5ths
--- enc 2: jump notes
+--
+--
+--
+-- enc/arc 1: circle of 5ths
+-- enc/arc 2: jump notes
 -- enc 3: add/remove
 -- key 2 (tap): major/minor
 -- key 2 (hold) + enc 2:
@@ -10,15 +15,14 @@
 -- record pattern,
 -- play pattern,
 -- (hold) clear pattern 
+-- arc 3: env2 ADSR
+-- arc 4: env3 ADSR
 --
 --
 --
 --
 --
---
---
---
--- slow down 
+-- slow down
 
 
 MusicUtil = require "musicutil"
@@ -26,6 +30,7 @@ local BeatClock = require "beatclock"
 local MollyThePoly = require "molly_the_poly/lib/molly_the_poly_engine"
 local pattern_time = require 'pattern_time'
 local Formatters = require "formatters"
+local ControlSpec = require "controlspec"
 
 engine.name = "MollyThePoly"
 
@@ -40,6 +45,7 @@ options.PW_MOD_SRC = {"LFO", "Env 1", "Manual"}
 options.LP_FILTER_TYPE = {"-12 dB/oct", "-24 dB/oct"}
 options.LP_FILTER_ENV = {"Env-1", "Env-2"}
 options.LFO_WAVE_SHAPE = {"Sine", "Triangle", "Saw", "Square", "Random"}
+options.self_driving_NAMES = {"off", "on"}
 local triggerDuration
 
 local gridDevice
@@ -346,16 +352,7 @@ function pivot_within_scale(pivot)
 			end 
 			break
 		end
-			--[[if not masterScale[mk + pivot] then return end
-			gridScale[counter] = masterScale[mk + pivot]
-			counter = counter + 1
-		end
-		if counter == 17 then 
-			counter = 1 
-			break
-		end]]
 	end
-	
 end
 
 function background_pivot_within_scale(pivot)
@@ -820,7 +817,14 @@ function advance_step()
 	if currentStep >= stepsPerBar then
 		bar = bar + 1
 		currentStep = 0
-		--pivot_within_scale(math.random(-2,2),bar)
+		if params:get("self_driving") == 2 then 
+			changer = math.random(1,3)
+			if changer == 1 then
+				pivot_within_scale(math.random(-2,2),bar)
+			elseif changer == 2 then 
+				change_scale(math.random(-1,1) * 5, tonality)
+			end
+		end
 	end
 
   if gridDevice then
@@ -1096,6 +1100,16 @@ function init()
 		action = function(value)
 			triggerDuration = value
 			end}
+
+		params:add{type = "option",
+		id = "self_driving",
+		name = "Self Driving",
+		options = options.self_driving_NAMES,
+		default = 1,
+		action = function(value)
+		end}
+
+
    
  
   params:add_separator()
@@ -1293,7 +1307,7 @@ function init()
   params:add{type = "control",
 		id = "ring_mod_freq",
 		name = "Ring Mod Frequency",
-		controlspec = MollyThePoly.specs.RING_MOD_FREQ,
+		controlspec = ControlSpec.new(.1, 300, "exp", 0, 50, "Hz"),
 		formatter = Formatters.format_freq,
 		action = engine.ringModFreq}
   params:add{type = "control",
@@ -1411,7 +1425,11 @@ function init()
 	pat = pattern_time.new()
 	pat.process = play_progression
 
+	params:read("/home/we/dust/data/traffic/traffic.pset")
+	params:bang()
+
 end
+
 
 function gridKey(x, y, z)
   
@@ -1523,7 +1541,7 @@ function ar.delta(n, delta)
 		if delta > 0 then pivotAmount = math.abs(pivotAmount) 
 		elseif delta < 0 then pivotAmount = pivotAmount * -1 end
 		
-		if util.time() - timeLast > .3 or arc2Check > 80  then 
+		if util.time() - timeLast > .2 or arc2Check > 40  then 
 			arc2Check = 0 
 			if not progression.isplaying then pivot_within_scale(pivotAmount) else background_pivot_within_scale(pivotAmount) end
 		else
@@ -1600,45 +1618,6 @@ function arc_redraw()
 		
 	end
 
-		--[[
-			-- get brightness by volume 
-			--
-			--
-			--
-			--
-			--kif #scale_note_names <17 then
-        for i = 1, grid_w do
-          if (i - 1) % COLS == 0 then x, y = 5, y + 11 end
-          local is_active = false
-          for _, n in pairs(notes) do
-            if n.position == i and n.active then
-              is_active = true
-              break
-            end
-          end
-          
-          local underline_length = 10
-          if scale_note_names[i] == nil then
-              break
-          elseif string.len(scale_note_names[i]) > 3 then
-              underline_length = 18
-					elseif string.len(scale_note_names[i]) > 2 then
-              underline_length = 16
-					end
-          
-          if is_active then screen.level(15)
-          else screen.level(3) end
-          screen.move(x, y)
-          screen.text(scale_note_names[i])
-          
-          x = x + 18
-       
-      end
-    end
-	end]]
-
-
-		
   ar:refresh()
 end
 
