@@ -659,7 +659,7 @@ local function note_on(note_num)
   
   -- MIDI out
   if (params:get("output") == 2 or params:get("output") == 3) then
-    midi_out_device.note_on(note_num, note_midi_vel, midi_out_channel)
+    midi_out_device:note_on(note_num, note_midi_vel, midi_out_channel)
   end
   
 end
@@ -671,7 +671,7 @@ function note_off(noteNum)
 	end
 
 	if (params:get("output") == 2 or params:get("output") == 3) then
-		midi_out_device.note_off(noteNum, nil, midi_out_channel)
+		midi_out_device:note_off(noteNum, nil, midi_out_channel)
 	end
 end
 
@@ -680,7 +680,7 @@ function all_notes_kill()
 
 	if (params:get("output") == 2 or params:get("output") == 3) then 
 		for _, a in pairs(activeNotes) do
-			midi_out_device.note_off(a, 96, midi_out_channel)
+			midi_out_device:note_off(a, 96, midi_out_channel)
 		end
 	end
 
@@ -999,6 +999,14 @@ local function grid_update()
     end
   end
 end
+
+local function midi_clock_event(data)
+	beat_clock:process_midi(data)
+	if not beat_clock.playing then 
+		screenDirty = true
+	end
+end
+
 
 function init()
 	midi_in_device = midi.connect(1)
