@@ -1,6 +1,6 @@
 -- los angeles traffic 
 -- headlines ON in rain
--- 1.1.4
+-- 1.2.0
 --
 --
 --
