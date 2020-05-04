@@ -34,7 +34,7 @@ local ControlSpec = require "controlspec"
 engine.name = "MollyThePoly"
 
 local options = {}
-options.OUTPUT = {"Audio", "MIDI", "Audio + MIDI"}
+options.OUTPUT = {"Audio + MIDI", "Audio", "MIDI"}
 options.STEP_LENGTH_NAMES = {"1 bar", "1/2", "1/3", "1/4", "1/6", "1/8", "1/12", "1/16", "1/24", "1/32", "1/48", "1/64"}
 options.STEP_LENGTH_DIVIDERS = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64}
 options.traffic_length_NAMES = {'normal','phasing', 'stationary', 'road rage'}
@@ -45,7 +45,9 @@ options.LP_FILTER_TYPE = {"-12 dB/oct", "-24 dB/oct"}
 options.LP_FILTER_ENV = {"Env-1", "Env-2"}
 options.LFO_WAVE_SHAPE = {"Sine", "Triangle", "Saw", "Square", "Random"}
 options.self_driving_NAMES = {"off", "on"}
+local syncOffset = 0 
 local triggerDuration
+
 
 local gridDevice
 local GRID_FRAMERATE = 30
@@ -378,7 +380,7 @@ function play_progression(e)
 		for k,v in pairs(progression.gridscale) do 
 			gridScale[k] = v
 		end
-		print('resetting to captured', MusicUtil.note_num_to_name(gridScale[1]))
+		--print('resetting to captured', MusicUtil.note_num_to_name(gridScale[1]))
 		for k,v in pairs(progression.masterscale) do 
 			masterScale[k] = v
 		end
@@ -494,7 +496,7 @@ end
 
 
 function midi_event(data)
-  print('what')
+  --print('what')
   local d = midi.to_msg(data)
 	local note
 	local e = {}
@@ -1000,8 +1002,15 @@ end
 
 function pulse()
 	while true do 
-			clock.sync(1/(stepsPerBar/4))
-			advance_step()
+		clock.sync(1/(stepsPerBar/4))
+			if syncOffset == 0 then 
+				advance_step()
+			else if syncOffset > 0 then 
+				syncOffset = syncOffset - 1
+			else
+				syncOffset = 0 
+			end
+		end
 	end
 end
 
@@ -1075,12 +1084,16 @@ function init()
 		action = function(value)
 			stepDuration = value
 			stepsPerBar = get_bar_length()
-			print(stepDuration,stepsPerBar)
+			--print(stepDuration,stepsPerBar)
 
 --			beat_clock.steps_per_beat = options.STEP_LENGTH_DIVIDERS[value] / 4
 --			beat_clock:bpm_change(beat_clock.bpm)
 			end}
   
+	 params:add{type = "trigger",
+		id = "sync_offset",
+		name = "Sync offset",
+		action = function() syncOffset = 1 end}
 		params:add{type = "option", 
 		id = "traffic_length", 
 		name = "Traffic", 
@@ -1090,20 +1103,14 @@ function init()
 			triggerDuration = value
 			end}
 
-		params:add{type = "option",
-		id = "self_driving",
-		name = "Self Driving",
-		options = options.self_driving_NAMES,
-		default = 1,
-		action = function(value)
-		end}
-
 
    
  
-  params:add_separator()
+  params:add_separator("engine params")
   
   -- Engine params
+	--
+	params:add_group("oscillator",11)
   
   params:add{type = "option", id = "osc_wave_shape", name = "Osc Wave Shape", 
 		options = options.OSC_WAVE_SHAPE, 
@@ -1156,7 +1163,8 @@ function init()
 		name = "Noise Level",
 		controlspec = MollyThePoly.specs.NOISE_LEVEL,
 		action = engine.noiseLevel}
-  params:add_separator()
+
+		params:add_group("filter",8)
   
   params:add{type = "control",
 		id = "hp_filter_cutoff",
@@ -1203,8 +1211,7 @@ function init()
 		formatter = format_ratio_to_one,
 		action = engine.lpFilterTracking}
   
- params:add_separator()
-  
+	params:add_group("LFO", 3) 
   params:add{type = "control",
 		id = "lfo_freq",
 		name = "LFO Frequency",
@@ -1226,8 +1233,7 @@ function init()
     engine.lfoFade(value)
   end}
   
- params:add_separator()
-  
+	params:add_group("envelopes/amp", 12)
   params:add{type = "control",
 		id = "env_1_attack",
 		name = "Env-1 Attack",
@@ -1291,8 +1297,7 @@ function init()
 		controlspec = MollyThePoly.specs.AMP_MOD,
 		action = engine.ampMod}
   
- params:add_separator()
-  
+		params:add_group("effects/randomization", 10)
   params:add{type = "control",
 		id = "ring_mod_freq",
 		name = "Ring Mod Frequency",
@@ -1337,7 +1342,18 @@ function init()
 		action = function() MollyThePoly.randomize_params("percussion") end}
 
  params:add_separator()
-		
+
+ params:add{type = "option",
+		id = "self_driving",
+		name = "Self Driving",
+		options = options.self_driving_NAMES,
+		default = 1,
+		action = function(value)
+		end}
+
+	
+	params:add_separator()
+	params:add_group("output options", 11)
 	params:add{type = "number", id = "gridDevice", name = "Grid Device", min = 1, max = 4, default = 1,
     action = function(value)
       gridDevice:all(0)
