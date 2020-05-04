@@ -26,7 +26,6 @@
 
 
 MusicUtil = require "musicutil"
-local BeatClock = require "beatclock"
 local MollyThePoly = require "molly_the_poly/lib/molly_the_poly_engine"
 local pattern_time = require 'pattern_time'
 local Formatters = require "formatters"
@@ -38,7 +37,7 @@ local options = {}
 options.OUTPUT = {"Audio", "MIDI", "Audio + MIDI"}
 options.STEP_LENGTH_NAMES = {"1 bar", "1/2", "1/3", "1/4", "1/6", "1/8", "1/12", "1/16", "1/24", "1/32", "1/48", "1/64"}
 options.STEP_LENGTH_DIVIDERS = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64}
-options.traffic_length_NAMES = {'sunday','rush hour', 'grid lock', 'road rage'}
+options.traffic_length_NAMES = {'normal','phasing', 'stationary', 'road rage'}
 options.traffic_length_DIVIDERS = {1, 2, 3, 4}
 options.OSC_WAVE_SHAPE = {"Triangle", "Saw", "Pulse"}
 options.PW_MOD_SRC = {"LFO", "Env 1", "Manual"}
@@ -495,6 +494,7 @@ end
 
 
 function midi_event(data)
+  print('what')
   local d = midi.to_msg(data)
 	local note
 	local e = {}
@@ -970,9 +970,6 @@ local function stop()
   all_notes_kill()
 end
 
-local function reset_step()
-  beat_clock:reset()
-end
 
 
 local function grid_update()
@@ -1000,10 +997,11 @@ local function grid_update()
   end
 end
 
-local function midi_clock_event(data)
-	beat_clock:process_midi(data)
-	if not beat_clock.playing then 
-		screenDirty = true
+
+function pulse()
+	while true do 
+			clock.sync(1/(stepsPerBar/4))
+			advance_step()
 	end
 end
 
@@ -1037,18 +1035,6 @@ function init()
   gridDevice.key = gridKey
 
   
-  beat_clock = BeatClock.new()
-  beat_clock.on_step = advance_step
-  beat_clock.on_stop = stop
-  beat_clock.on_select_internal = function()
-    beat_clock:start()
-    screenDirty = true
-  end
-  beat_clock.on_select_external = function()
-    reset_step()
-    screenDirty = true
-  end
-  
   midi_out_device = midi.connect(1)
   midi_out_device.event = function() end
   
@@ -1081,13 +1067,6 @@ function init()
 
   
   -- Add params
- 
-  params:add{type = "number", id = "bpm", name = "BPM", min = 1, max = 340, default =140,
-    action = function(value)
-      beat_clock:bpm_change(value)
-      
-    end}
- 
 	params:add{type = "option", 
 		id = "step_length", 
 		name = "Step Length", 
@@ -1096,11 +1075,13 @@ function init()
 		action = function(value)
 			stepDuration = value
 			stepsPerBar = get_bar_length()
-			beat_clock.steps_per_beat = options.STEP_LENGTH_DIVIDERS[value] / 4
-			beat_clock:bpm_change(beat_clock.bpm)
-			end}
+			print(stepDuration,stepsPerBar)
 
-   params:add{type = "option", 
+--			beat_clock.steps_per_beat = options.STEP_LENGTH_DIVIDERS[value] / 4
+--			beat_clock:bpm_change(beat_clock.bpm)
+			end}
+  
+		params:add{type = "option", 
 		id = "traffic_length", 
 		name = "Traffic", 
 		options = options.traffic_length_NAMES, 
@@ -1386,26 +1367,6 @@ function init()
     end}
   params:add{type = "number", id = "max_active_notes", name = "Max Active Notes", min = 1, max = 10, default = 10}
   
-  
-	params:add{type = "option", id = "clock", name = "Clock", options = {"Internal", "External"}, default = beat_clock.external or 2 and 1,
-    action = function(value)
-      beat_clock:clock_source_change(value)
-    end}
-  
-  params:add{type = "number", id = "clock_midi_in_device", name = "Clock MIDI In Device", min = 1, max = 4, default = 1,
-    action = function(value)
-			midi_in_device.event = nil
-      midi_in_device = midi.connect(value)
-      midi_in_device.event = midi_clock_event
-    end}
-  
-  params:add{type = "option", id = "clock_out", name = "Clock Out", options = {"Off", "On"}, default = beat_clock.send or 2 and 1,
-    action = function(value)
-      if value == 1 then beat_clock.send = false
-      else beat_clock.send = true end
-    end}
-  
-
   midi_out_channel = params:get("midi_out_channel")
 
   params:add_separator()
@@ -1428,8 +1389,8 @@ function init()
   grid_redraw_metro:start(1 / GRID_FRAMERATE)
   screen_refresh_metro:start(1 / SCREEN_FRAMERATE)
 	arc_redraw_metro:start(1 / ARC_FRAMERATE)
-  beat_clock:start()
 
+	clock.run(pulse)
 	pat = pattern_time.new()
 	pat.process = play_progression
 
