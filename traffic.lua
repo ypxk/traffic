@@ -655,12 +655,12 @@ local function note_on(note_num)
   -- print("note_on", note_num, note_midi_vel)
   
   -- Audio engine out
-  if params:get("output") == 1 or params:get("output") == 3 then
+  if params:get("output") == 1 or params:get("output") == 2 then
     engine.noteOn(note_num, MusicUtil.note_num_to_freq(note_num), note_midi_vel / 127)
   end
   
   -- MIDI out
-  if (params:get("output") == 2 or params:get("output") == 3) then
+  if (params:get("output") == 1 or params:get("output") == 3) then
     midi_out_device:note_on(note_num, note_midi_vel, midi_out_channel)
   end
   
